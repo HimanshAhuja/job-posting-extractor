@@ -1,0 +1,12 @@
+# Top-level dependencies we chose on purpose (unpinned).
+# The exact, pinned versions of these AND their sub-dependencies go in
+# requirements.txt, generated with:  pip freeze > requirements.txt
+# More packages get added here as later stages need them.
+
+mlx-lm          # fine-tuning + inference on Apple Silicon (pulls in mlx, transformers)
+datasets        # Hugging Face datasets: loading, splitting, saving
+pydantic        # schema validation for the JSON labels
+requests        # Greenhouse / Lever public APIs
+pandas          # tabular inspection and cleaning
+python-dotenv   # load API keys from .env
+pytest          # unit tests for normalization rules

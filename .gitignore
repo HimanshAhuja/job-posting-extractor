@@ -1,0 +1,27 @@
+# --- Secrets: API keys live in .env, which must NEVER be committed ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+
+# --- Raw downloads (may carry source licenses that forbid redistribution) ---
+data/raw/*
+!data/raw/.gitkeep
+
+# --- Model weights, LoRA adapters, caches: large and reproducible ---
+models/
+adapters/
+*.safetensors
+*.gguf
+.cache/
+
+# --- macOS / editors ---
+.DS_Store
+.vscode/
+.idea/
