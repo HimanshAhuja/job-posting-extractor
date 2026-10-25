@@ -59,5 +59,16 @@ Small LLMs are unreliable at arithmetic and currency conversion. The model copie
 **Test one change at a time**
 Each test starts from a known-valid example and breaks exactly one field. If it fails validation, that one field must be the cause. Breaking two things at once can't tell you which rule actually works.
 
+## Stage 1, Step 4 — Cleaning HTML
+
+**Two layers of escaping, unescape exactly once**
+Greenhouse escapes its whole HTML, and the entities inside it were already escaped (`&amp;nbsp;`). After one `html.unescape()` we have normal HTML; an HTML *parser* then decodes the remaining entities while reading the text. Unescaping twice turns a literal `&lt;table&gt;` in the text into a real `<table>` tag, and the word silently disappears. A test proves it: the double-unescape version outputs `"Write semantic\nmarkup"`.
+
+**Parser over regex for HTML**
+`re.sub(r"<[^>]+>", "", s)` can't tell a tag from a `<` in the text, and it loses structure. `html.parser.HTMLParser` knows what's a tag, so we can turn `<li>` into a bullet and `<p>` into a line break. Structure helps the model too: "Requirements:" followed by bullets is easier to read than one long blob.
+
+**A good test fails on the bug it guards against**
+Before trusting a test, check that it fails on the wrong implementation. Otherwise it might be passing for the wrong reason.
+
 **Teacher model = upper bound on what we can learn (distillation)**
 The training labels come from the Groq API model, so the fine-tuned model is learning to imitate it, including its mistakes. Measuring against hand-verified gold labels (not Groq's) is what tells us the truth.
