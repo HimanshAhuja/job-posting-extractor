@@ -15,3 +15,18 @@ Apple Silicon has *unified memory*: the CPU and GPU share the same 24 GB, so the
 
 **Why API keys go in `.env`, not code**
 Anything committed to Git stays in the history forever, even after deletion, and public repos are scanned by bots for keys within minutes. `.env` is listed in `.gitignore`; `.env.example` shows the variable names without values.
+
+**How big should the gold test set be? (sampling error)**
+An accuracy measured on n examples is an estimate with noise. Standard error = √(p(1−p)/n); a rough 95% range is ±1.96 × SE. For a field the model gets right 80% of the time:
+
+| n | ±95% range |
+|---|---|
+| 50 | ±11 points |
+| 100 | ±8 points |
+| 150 | ±6.4 points |
+| 250 | ±5 points |
+
+So with 50 test postings, "fine-tuned 78% vs prompted 72%" could just be luck. We chose **150** gold postings as the balance between labelling time and trustworthy comparisons. Comparing models on the *same* 150 postings (a paired comparison) helps further, because both models face identical difficulty.
+
+**Teacher model = upper bound on what we can learn (distillation)**
+The training labels come from the Groq API model, so the fine-tuned model is learning to imitate it, including its mistakes. Measuring against hand-verified gold labels (not Groq's) is what tells us the truth.
