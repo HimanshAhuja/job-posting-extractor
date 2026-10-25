@@ -28,5 +28,8 @@ An accuracy measured on n examples is an estimate with noise. Standard error = â
 
 So with 50 test postings, "fine-tuned 78% vs prompted 72%" could just be luck. We chose **150** gold postings as the balance between labelling time and trustworthy comparisons. Comparing models on the *same* 150 postings (a paired comparison) helps further, because both models face identical difficulty.
 
+**Commit vs push**
+`git commit` saves a snapshot into the hidden `.git` folder on my Mac, and nothing leaves the laptop. `git push` uploads those commits to a *remote* (GitHub). GitHub only knows about a repo once I create it there and push to it. Commit often, at every step; push whenever I want GitHub up to date.
+
 **Teacher model = upper bound on what we can learn (distillation)**
 The training labels come from the Groq API model, so the fine-tuned model is learning to imitate it, including its mistakes. Measuring against hand-verified gold labels (not Groq's) is what tells us the truth.
