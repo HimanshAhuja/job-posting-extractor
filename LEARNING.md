@@ -45,5 +45,19 @@ Lever returns at most `limit` results per request, so we loop with `skip`; a sho
 **Random sampling keeps the pool's imbalance**
 In the 8,604 raw postings, only about 2% are internships and 5 companies make up 37%. A random 1,500 would contain roughly 30 internships, and the model would barely learn internship fields. Worse, for a field that is almost always null (like `min_cgpa`), a model that *always* outputs null gets nearly 100% accuracy while being useless. That's an inflated metric. The fixes are **stratified selection** (choose how many of each kind to include) and **reporting accuracy separately on postings where the field is actually present**.
 
+## Stage 1, Step 3 — The schema
+
+**Why a schema with validation (Pydantic)**
+The schema is the contract for every label and every model output. Pydantic checks types, allowed values and cross-field rules, so a bad label fails loudly instead of quietly teaching the model something wrong. The same check later measures *JSON validity rate*: parse the model's text → validate → pass/fail.
+
+**One way to say "unknown"**
+Single values use `null`, lists use `[]`, and every key is always present. If some labels said `null` and others `""` or left the key out, the model would learn three ways to express the same thing, and the evaluation would count correct answers as wrong.
+
+**Extract, don't compute**
+Small LLMs are unreliable at arithmetic and currency conversion. The model copies pay *as stated* (amount, currency, period, original text); deterministic, unit-tested code does conversions. Each part does what it's good at, and every number can be traced back to `pay_raw`.
+
+**Test one change at a time**
+Each test starts from a known-valid example and breaks exactly one field. If it fails validation, that one field must be the cause. Breaking two things at once can't tell you which rule actually works.
+
 **Teacher model = upper bound on what we can learn (distillation)**
 The training labels come from the Groq API model, so the fine-tuned model is learning to imitate it, including its mistakes. Measuring against hand-verified gold labels (not Groq's) is what tells us the truth.
