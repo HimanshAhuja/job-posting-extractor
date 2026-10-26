@@ -13,6 +13,9 @@ __pycache__/
 # --- Raw downloads (may carry source licenses that forbid redistribution) ---
 data/raw/*
 !data/raw/.gitkeep
+# Processed postings still contain the companies' full text, so they stay out too
+data/processed/*
+!data/processed/.gitkeep
 
 # --- Model weights, LoRA adapters, caches: large and reproducible ---
 models/

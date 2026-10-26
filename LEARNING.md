@@ -70,5 +70,14 @@ Greenhouse escapes its whole HTML, and the entities inside it were already escap
 **A good test fails on the bug it guards against**
 Before trusting a test, check that it fails on the wrong implementation. Otherwise it might be passing for the wrong reason.
 
+**Deduplication and the data funnel**
+Companies repost one role once per city. Exact copies (same company + title + body, location ignored) waste labelling effort, and if one copy lands in train and another in test, the model is tested on something it has already seen. That's leakage, and it inflates the score. We keep one copy and record `n_copies`. A *funnel* report (raw → minus each filter → final) makes every removal visible, and those numbers go in the dataset card.
+
+**Near-duplicates and why we split by company**
+Same company + same title but different text (e.g. the same role with a different pay range per country) is a near-duplicate. We don't delete those, because they're genuinely different postings with different labels. Splitting train/val/test **by company** puts all of a company's variants in the same split, so near-duplicates can't leak across splits.
+
+**Deterministic pipelines**
+"Keep the first copy" is only reproducible if "first" is defined: we sort by id before deduplicating. Same input → same output, every run.
+
 **Teacher model = upper bound on what we can learn (distillation)**
 The training labels come from the Groq API model, so the fine-tuned model is learning to imitate it, including its mistakes. Measuring against hand-verified gold labels (not Groq's) is what tells us the truth.
