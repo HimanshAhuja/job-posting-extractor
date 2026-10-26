@@ -94,5 +94,42 @@ At most 50 / 25 / 20 postings per company (train / val / test), so Databricks ca
 **Seeds: fixed, written down, never re-rolled**
 `SEED = 42` was set before any results existed. Re-shuffling until the test set "looks nice" is a quiet way to cheat. Each company gets its own seed (`random.Random("42:Stripe")`), so adding one company to the list doesn't reshuffle everyone else's sample.
 
+## Stage 1, Step 6 — API budgeting
+
+**Three kinds of rate limits**
+RPD (requests per day), TPM (tokens per minute) and TPD (tokens per day). On my Groq free tier, the big models allow 1,000 RPD and 8,000 TPM, and Groq's docs list 200K TPD. The binding constraint is whichever runs out first. For us that's TPD: about 4.7M tokens needed ÷ 200K per day ≈ 24 days.
+
+**Token budget = input + prompt + output (+ reasoning)**
+Posting text ≈ chars ÷ 4 (measured: ~1,580 tokens per posting on average). Every request also pays for the instructions again, plus the answer. Reasoning models (gpt-oss) also spend hidden "reasoning tokens", and those count too. Measure on a small pilot before planning the full run.
+
+**Why not just delete boilerplate to save tokens?**
+36% of the text is paragraphs a company repeats across postings ("About Stripe", benefits, EEO). But I counted 2,240 of those repeated paragraphs mentioning work mode, pay or internships, e.g. a company-wide "we work in-office 3 days a week" line. Deleting them would delete the evidence for our labels. Data reduction has to be checked against the fields we extract.
+
+## Stage 1, Step 7 — The labeller
+
+**One source of truth for the rules**
+The system prompt is built from LABELING_GUIDE.md, and a test checks that the prompt's key list equals the schema's fields. Groq and I label by the same rules, and schema/prompt drift is caught before any tokens are spent.
+
+**Prompt injection**
+Postings are text written by strangers. A posting could contain "ignore previous instructions…". We wrap it in `<<< >>>` and tell the model to treat it only as data. That's not a guarantee, but it's the basic defence, and Pydantic validation catches outputs that go off the rails.
+
+**Validate, then retry with feedback**
+`temperature=0` makes answers (nearly) repeatable. If the JSON fails validation, the model gets one retry *with the exact error message*, which usually fixes it. Every retry costs tokens, so we count first-try vs second-try success.
+
+**Crash-safe, resumable jobs**
+Each result is appended and `flush()`ed to disk as soon as it arrives. A crash or a daily-limit stop loses at most the posting in progress, and re-running skips what's done.
+
+**Pilot on train, never on test**
+Looking at test postings while tuning the prompt quietly fits the prompt to the test set. Pilots and prompt fixes use train postings only.
+
+**`CERTIFICATE_VERIFY_FAILED: self-signed certificate in certificate chain`**
+HTTPS proves you're talking to the real server: the server presents a certificate signed by an authority your computer trusts. Some campus/office networks decrypt and re-encrypt all traffic ("TLS interception") using their own certificate, and Python correctly refuses it. The fix is a different network, not `verify=False`. Turning verification off would let the interceptor read the `Authorization` header, i.e. the API key.
+
+**Long jobs on a laptop**
+Timeouts `(connect=10s, read=120s)` stop a dead connection from hanging forever. `caffeinate -i <command>` keeps the Mac awake while the command runs. Measure API time separately from deliberate rate-limit waits, or the latency numbers are meaningless.
+
+**Testing code that calls an API**
+A fake session returns canned responses (valid JSON, broken JSON, 429 errors), so retry and limit logic is tested with no network and no tokens spent.
+
 **Teacher model = upper bound on what we can learn (distillation)**
 The training labels come from the Groq API model, so the fine-tuned model is learning to imitate it, including its mistakes. Measuring against hand-verified gold labels (not Groq's) is what tells us the truth.
