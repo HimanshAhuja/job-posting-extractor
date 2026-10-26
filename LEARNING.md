@@ -79,5 +79,19 @@ Same company + same title but different text (e.g. the same role with a differen
 **Deterministic pipelines**
 "Keep the first copy" is only reproducible if "first" is defined: we sort by id before deduplicating. Same input → same output, every run.
 
+## Stage 1, Step 5 — Selection and the company split
+
+**Group split (by company), not a random split**
+A random split by posting puts Stripe postings in both train and test. Stripe reuses the same "About Stripe" text, layout and pay format everywhere, so the model would partly be recognising Stripe instead of extracting. Holding out whole companies tests what we actually care about: postings from a company the model has never seen.
+
+**Stratified group split**
+With only 40 companies, a plain random company split could put every India-heavy company in train and leave the test set with no Indian postings. So companies are grouped (India-heavy, intern-heavy, other) and each group is dealt across splits separately. Every split then has some of each kind.
+
+**Caps and oversampling**
+At most 50 / 25 / 20 postings per company (train / val / test), so Databricks can't be 10% of the data. All internships are taken first because they're rare (~2% of the pool).
+
+**Seeds: fixed, written down, never re-rolled**
+`SEED = 42` was set before any results existed. Re-shuffling until the test set "looks nice" is a quiet way to cheat. Each company gets its own seed (`random.Random("42:Stripe")`), so adding one company to the list doesn't reshuffle everyone else's sample.
+
 **Teacher model = upper bound on what we can learn (distillation)**
 The training labels come from the Groq API model, so the fine-tuned model is learning to imitate it, including its mistakes. Measuring against hand-verified gold labels (not Groq's) is what tells us the truth.
