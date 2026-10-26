@@ -15,6 +15,7 @@ Apple Silicon has *unified memory*: the CPU and GPU share the same 24 GB, so the
 
 **Why API keys go in `.env`, not code**
 Anything committed to Git stays in the history forever, even after deletion, and public repos are scanned by bots for keys within minutes. `.env` is listed in `.gitignore`; `.env.example` shows the variable names without values.
+*Near miss (Stage 1):* I once pasted the real key into `.env.example`. That file **is** tracked by git, so the next `git add .` would have committed the key. Rule: real values only ever go in `.env`. Quick check: `git ls-files .env.example` prints the name (tracked), while `git ls-files .env` prints nothing (ignored).
 
 **How big should the gold test set be? (sampling error)**
 An accuracy measured on n examples is an estimate with noise. Standard error = √(p(1−p)/n); a rough 95% range is ±1.96 × SE. For a field the model gets right 80% of the time:
