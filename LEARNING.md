@@ -146,5 +146,8 @@ A label is only valid for the exact text and the exact instructions it was made 
 **A safety check only works if every reader uses it**
 The labeller skipped stale labels, but the comparison script didn't, so it happily compared two sets of old labels and the table looked like a fresh result. Now `compare_labels` uses the same `up_to_date()` check and says how many stale labels it skipped. Rule: put the "is this still valid?" logic in one function and call it everywhere a label is read (comparison now; training and evaluation later).
 
+**Count how common a case is before writing a rule for it**
+The fresh pilot showed one `#LI-Hybrid` tag and one OTE pay range. Before adding rules, I counted them across all 1,529 selected postings: about 270 have a `#LI-` work-mode tag and 139 mention OTE. A case seen once in a pilot can affect a fifth of the dataset. Also, both models agreed on the Auth0 OTE range and were both wrong (OTE includes commission, and the guide says base pay only). Agreement tables can't find that; only reading the posting can.
+
 **Teacher model = upper bound on what we can learn (distillation)**
 The training labels come from the Groq API model, so the fine-tuned model is learning to imitate it, including its mistakes. Measuring against hand-verified gold labels (not Groq's) is what tells us the truth.
