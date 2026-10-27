@@ -149,5 +149,17 @@ The labeller skipped stale labels, but the comparison script didn't, so it happi
 **Count how common a case is before writing a rule for it**
 The fresh pilot showed one `#LI-Hybrid` tag and one OTE pay range. Before adding rules, I counted them across all 1,529 selected postings: about 270 have a `#LI-` work-mode tag and 139 mention OTE. A case seen once in a pilot can affect a fifth of the dataset. Also, both models agreed on the Auth0 OTE range and were both wrong (OTE includes commission, and the guide says base pay only). Agreement tables can't find that; only reading the posting can.
 
+**Anchoring bias in gold labels**
+When you correct pre-filled labels, you tend to accept what's already there. If the test set were pre-labelled by the teacher (Qwen), the gold set would lean toward Qwen's answers, which flatters the teacher and the student that copies it. So test is pre-labelled by a different model (gpt-oss-120b). Any leftover bias now goes *against* the fine-tuned model, which is the safe direction when the claim is "fine-tuning wins".
+
+**One teacher per training set; limits are per model**
+Groq's daily limits are per model, so two models give two separate budgets: gpt-oss labels test, Qwen labels val and train. Never mix teachers inside train, or the student learns two slightly different labelling styles.
+
+**Freeze the guide once real labelling starts**
+Before: a guide change is cheap (re-run 20 pilot postings). After: it makes every label stale. New cases go into DECISIONS.md, and only a case that matters enough triggers a relabel.
+
+**Normalize in code, not in the model**
+`src/normalize/pay.py` turns "$40/hour" into 83,200 a year with written assumptions (2,080 working hours a year). If the model did this, every answer would be a chance for an arithmetic mistake, and the assumptions would be invisible. Code is tested once and does the same thing every time. Currency is never converted, because rates change and the posting doesn't.
+
 **Teacher model = upper bound on what we can learn (distillation)**
 The training labels come from the Groq API model, so the fine-tuned model is learning to imitate it, including its mistakes. Measuring against hand-verified gold labels (not Groq's) is what tells us the truth.
