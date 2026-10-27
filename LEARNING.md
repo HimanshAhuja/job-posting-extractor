@@ -143,5 +143,8 @@ Lever job pages show "Internship · On-site" in the header, but our first versio
 **Labels go stale: fingerprint their inputs**
 A label is only valid for the exact text and the exact instructions it was made from. Each label stores `text_sha1` and `prompt_sha1` (short hashes). If the posting text or LABELING_GUIDE.md changes, the hashes no longer match and the labeller redoes that posting automatically. Old labels can't silently mix with new rules.
 
+**A safety check only works if every reader uses it**
+The labeller skipped stale labels, but the comparison script didn't, so it happily compared two sets of old labels and the table looked like a fresh result. Now `compare_labels` uses the same `up_to_date()` check and says how many stale labels it skipped. Rule: put the "is this still valid?" logic in one function and call it everywhere a label is read (comparison now; training and evaluation later).
+
 **Teacher model = upper bound on what we can learn (distillation)**
 The training labels come from the Groq API model, so the fine-tuned model is learning to imitate it, including its mistakes. Measuring against hand-verified gold labels (not Groq's) is what tells us the truth.

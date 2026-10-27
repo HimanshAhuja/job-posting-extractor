@@ -5,6 +5,9 @@ Agreement is not accuracy: two models can agree and both be wrong, and
 agreement on the postings where at least one model found a value, and the
 disagreements are printed for checking by hand against the posting.
 
+Only labels made from today's posting text and today's guide are compared;
+stale ones are counted and skipped, so an old label can't pass for a new one.
+
 Usage (from the repo root, with .venv active):
     python -m src.label.compare_labels FILE_A FILE_B
     python -m src.label.compare_labels FILE_A FILE_B --show pay_min
@@ -13,16 +16,24 @@ import argparse
 import json
 from pathlib import Path
 
+from src.label.label_groq import fingerprint, load_selected, up_to_date
+from src.label.prompt import system_prompt
 from src.schema import JobPosting
 
 
-def load_valid_labels(path):
+def load_fresh_labels(path, wanted):
+    """Latest valid label per id, keeping only those made from today's text and guide.
+
+    Returns (labels, number of stale labels skipped).
+    """
     labels = {}
     with Path(path).open(encoding="utf-8") as f:
         for line in f:
             row = json.loads(line)
             labels[row["id"]] = row["label"] if row["valid"] else None  # last line wins
-    return {i: label for i, label in labels.items() if label is not None}
+    fresh = up_to_date(Path(path), wanted)
+    valid = {i: label for i, label in labels.items() if label is not None}
+    return {i: label for i, label in valid.items() if i in fresh}, len(valid) - len(fresh & set(valid))
 
 
 def normalise(value):
@@ -47,9 +58,15 @@ def main():
     parser.add_argument("--show", metavar="FIELD", help="print every disagreement for this field")
     args = parser.parse_args()
 
-    a, b = load_valid_labels(args.file_a), load_valid_labels(args.file_b)
+    prompt_sha1 = fingerprint(system_prompt())
+    wanted = {p["id"]: (fingerprint(p["text"]), prompt_sha1) for p in load_selected()}
+    (a, stale_a), (b, stale_b) = load_fresh_labels(args.file_a, wanted), load_fresh_labels(args.file_b, wanted)
     shared = sorted(set(a) & set(b))
-    print(f"A: {args.file_a}\nB: {args.file_b}\nPostings labelled validly by both: {len(shared)}\n")
+    print(f"A: {args.file_a} ({stale_a} stale labels skipped)\n"
+          f"B: {args.file_b} ({stale_b} stale labels skipped)\n"
+          f"Postings with a fresh, valid label from both: {len(shared)}\n")
+    if not shared:
+        raise SystemExit("Nothing to compare: re-run the labeller for both models first.")
     print(f"{'field':17} {'agree':>7} {'both empty':>11} {'agree when a value exists':>27}")
 
     disagreements = {}
