@@ -114,6 +114,16 @@ def test_parse_duration(text, seconds):
     assert lg.parse_duration(text) == pytest.approx(seconds)
 
 
+def test_label_goes_stale_when_text_or_guide_changes(tmp_path):
+    result = lg.label_one(FakeSession([answer(json.dumps(valid_posting()))]), "some-model", POSTING)
+    out = tmp_path / "labels.jsonl"
+    out.write_text(json.dumps(result) + "\n")
+    current = (result["text_sha1"], result["prompt_sha1"])
+    assert lg.up_to_date(out, {POSTING["id"]: current}) == {POSTING["id"]}
+    assert lg.up_to_date(out, {POSTING["id"]: ("new-text", current[1])}) == set()
+    assert lg.up_to_date(out, {POSTING["id"]: (current[0], "new-guide")}) == set()
+
+
 def fake_selected():
     rows = []
     for k in range(200):

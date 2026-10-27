@@ -131,5 +131,17 @@ Timeouts `(connect=10s, read=120s)` stop a dead connection from hanging forever.
 **Testing code that calls an API**
 A fake session returns canned responses (valid JSON, broken JSON, 429 errors), so retry and limit logic is tested with no network and no tokens spent.
 
+**Agreement is not accuracy**
+Two models agreeing doesn't make them right; both can be wrong the same way. And "both said null" is the cheapest agreement there is: in the pilot, `start`, `deadline` and `min_gpa` were 11/11 "agree" purely because both models left them empty. Always look at agreement *where a value exists*, and settle disagreements by reading the posting.
+
+**Disagreements expose gaps in the guide**
+The pilot's disagreements were mostly *rule* problems, not model problems. `skills` was undefined enough that one model listed "customer service" and "English". Palantir's text only had a company-wide "many teams offer hybrid" policy. Each disagreement became a sharper rule in LABELING_GUIDE.md, which is cheaper than any model upgrade.
+
+**The model input should match what a user would paste**
+Lever job pages show "Internship · On-site" in the header, but our first version left those out of the text. The model was being asked for facts it couldn't see. Now Lever postings get `Commitment:` and `Workplace:` lines, exactly as the page shows them. Greenhouse pages have no such line, so nothing is added there.
+
+**Labels go stale: fingerprint their inputs**
+A label is only valid for the exact text and the exact instructions it was made from. Each label stores `text_sha1` and `prompt_sha1` (short hashes). If the posting text or LABELING_GUIDE.md changes, the hashes no longer match and the labeller redoes that posting automatically. Old labels can't silently mix with new rules.
+
 **Teacher model = upper bound on what we can learn (distillation)**
 The training labels come from the Groq API model, so the fine-tuned model is learning to imitate it, including its mistakes. Measuring against hand-verified gold labels (not Groq's) is what tells us the truth.

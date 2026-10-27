@@ -66,17 +66,28 @@ def from_lever(job, board):
 FLATTENERS = {"greenhouse": from_greenhouse, "lever": from_lever}
 
 
+# How Lever job pages display workplace_type; "unspecified" isn't shown at all.
+LEVER_WORKPLACE_LABELS = {"onsite": "On-site", "remote": "Remote", "hybrid": "Hybrid"}
+
+
 def model_input(posting):
     """The text the model reads: what you'd copy from the job page.
 
-    Title and location are shown at the top of a real job page, so they are
-    included. The company name and `meta` are not added: the model must find
-    the company in the text, and meta is kept only for checking labels later.
+    Title and location are shown at the top of every job page. Lever pages also
+    show the commitment ("Internship") and workplace ("On-site"), so those lines
+    are added for Lever postings only. The company name is not added: the model
+    must find it in the text.
     """
-    header = posting["title"]
+    lines = [posting["title"]]
     if posting["location"]:
-        header += f"\nLocation: {posting['location']}"
-    return f"{header}\n\n{posting['body']}"
+        lines.append(f"Location: {posting['location']}")
+    meta = posting.get("meta") or {}
+    if meta.get("commitment"):
+        lines.append(f"Commitment: {meta['commitment']}")
+    workplace = LEVER_WORKPLACE_LABELS.get((meta.get("workplace_type") or "").replace("-", "").lower())
+    if workplace:
+        lines.append(f"Workplace: {workplace}")
+    return "\n".join(lines) + f"\n\n{posting['body']}"
 
 
 def dedupe_key(posting):

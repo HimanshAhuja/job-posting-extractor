@@ -10,6 +10,7 @@ Usage (from the repo root, with .venv active):
     python -m src.label.label_groq --model openai/gpt-oss-120b --split test
 """
 import argparse
+import hashlib
 import json
 import os
 import random
@@ -55,6 +56,11 @@ SSL_HELP = (
     "(common on campus or office Wi-Fi). Switch networks, e.g. a phone hotspot, and re-run. "
     "Never turn certificate checks off: whoever intercepts the traffic would see your API key."
 )
+
+
+def fingerprint(text):
+    """Short hash of a text. If the posting text or the prompt changes, so does this."""
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
 
 
 def parse_duration(text):
@@ -108,7 +114,9 @@ def pace(resp):
     """If this minute's token allowance is nearly used up, wait until it refills."""
     remaining = int(resp.headers.get("x-ratelimit-remaining-tokens", TOKENS_PER_REQUEST))
     if remaining < TOKENS_PER_REQUEST:
-        time.sleep(parse_duration(resp.headers.get("x-ratelimit-reset-tokens")) + 0.5)
+        wait = parse_duration(resp.headers.get("x-ratelimit-reset-tokens")) + 0.5
+        print(f"  pacing: {remaining} tokens left this minute, waiting {wait:.0f}s")
+        time.sleep(wait)
 
 
 def strip_reasoning(content):
@@ -123,7 +131,9 @@ def label_one(session, model, posting):
     ]
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "reasoning_tokens": 0}
     api_seconds = 0.0
-    record = {"id": posting["id"], "split": posting["split"], "model": model, "schema_version": SCHEMA_VERSION}
+    record = {"id": posting["id"], "split": posting["split"], "model": model, "schema_version": SCHEMA_VERSION,
+              # What this label was made from; a later change to either makes it stale.
+              "text_sha1": fingerprint(posting["text"]), "prompt_sha1": fingerprint(messages[0]["content"])}
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         resp = call_groq(session, model, messages)
@@ -185,15 +195,23 @@ def pick_pilot(postings, n):
     return (interns + india + rest)[:n]
 
 
-def already_valid(out_path):
+def up_to_date(out_path, wanted):
+    """Ids whose latest label is valid AND was made from today's text and prompt.
+
+    `wanted` maps id -> (text_sha1, prompt_sha1) for the current data. A label
+    made before the posting text or the labelling guide changed doesn't count.
+    """
     if not out_path.exists():
         return set()
     latest = {}
     with out_path.open(encoding="utf-8") as f:
         for line in f:
             row = json.loads(line)
-            latest[row["id"]] = row["valid"]  # last line for an id wins
-    return {i for i, valid in latest.items() if valid}
+            latest[row["id"]] = row  # last line for an id wins
+    return {
+        i for i, row in latest.items()
+        if row["valid"] and (row.get("text_sha1"), row.get("prompt_sha1")) == wanted.get(i)
+    }
 
 
 def main():
@@ -217,9 +235,11 @@ def main():
         todo, tag = [p for p in postings if p["split"] == args.split], args.split
     out_path = LABELS_DIR / f"{tag}__{args.model.replace('/', '_')}.jsonl"
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    done = already_valid(out_path)
+    prompt_sha1 = fingerprint(system_prompt())
+    wanted = {p["id"]: (fingerprint(p["text"]), prompt_sha1) for p in todo}
+    done = up_to_date(out_path, wanted)
     todo = [p for p in todo if p["id"] not in done]
-    print(f"{len(done)} already labelled, {len(todo)} to go -> {out_path.relative_to(REPO_ROOT)}")
+    print(f"{len(done)} up to date, {len(todo)} to go -> {out_path.relative_to(REPO_ROOT)}")
 
     results = []
     with out_path.open("a", encoding="utf-8") as out:
@@ -234,7 +254,8 @@ def main():
                 break
             except RequestTooLarge as err:
                 result = {"id": posting["id"], "split": posting["split"], "model": args.model,
-                          "schema_version": SCHEMA_VERSION, "valid": False, "label": None,
+                          "schema_version": SCHEMA_VERSION, "text_sha1": wanted[posting["id"]][0],
+                          "prompt_sha1": prompt_sha1, "valid": False, "label": None,
                           "error": f"request too large: {err}", "attempts": 0, "labelled_at": now()}
             out.write(json.dumps(result, ensure_ascii=False) + "\n")
             out.flush()  # on disk now, even if the next call crashes

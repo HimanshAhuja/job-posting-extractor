@@ -7,10 +7,10 @@ How to fill each field of `src/schema.py` (schema version 1). Groq's labelling p
 - Not stated → `null` (single values) or `[]` (lists). Never `""`.
 
 ## Who and what
-- `company`: the hiring company's name as written in the posting.
-- `role`: the job title, as written (usually the first line).
+- `company`: the hiring company's name as written in the posting, without division or team labels ("InMobi (Corporate)" → "InMobi").
+- `role`: the job title copied exactly from the first line. Don't expand abbreviations or tidy it ("HRBP_Bangalore" stays "HRBP_Bangalore").
 - `job_type`: `internship` for intern / co-op / apprentice roles; `contract` for contract or temporary roles; `part_time` or `full_time` only when the posting says so. Otherwise `null`.
-- `skills`: technical skills, languages, tools and frameworks the posting names as required or preferred, as written, no duplicates. Not soft skills ("communication").
+- `skills`: named technologies only (programming languages, frameworks, libraries, databases, cloud platforms, tools, protocols), e.g. "Python", "SQL", "Kubernetes", "AWS", "MDM". Copy as written, no duplicates. **Not** activities, domains or soft skills ("customer service", "documentation", "technical leadership", "software engineering") and not spoken languages ("English").
 
 ## Pay (five fields)
 | Field | Meaning |
@@ -22,6 +22,7 @@ How to fill each field of `src/schema.py` (schema version 1). Groq's labelling p
 | `pay_raw` | the pay text copied from the posting (at most ~300 characters) |
 
 - Pay mentioned without an amount ("Competitive salary") → `pay_raw` only, the other four `null`.
+- `pay_raw` is only text about this job's pay. General talk about wealth, growth, benefits or perks is not pay → `null`.
 - LPA = lakhs per annum; 1 lakh = 100,000. "6–7 LPA" → 600000, 700000, `INR`, `year`.
 - Base pay only: ignore bonus, equity and benefits amounts.
 - Several ranges (e.g. one per location zone) → `pay_min` = lowest, `pay_max` = highest across them. If they are in different currencies, use only the first currency listed.
@@ -30,7 +31,8 @@ How to fill each field of `src/schema.py` (schema version 1). Groq's labelling p
 ## Work mode and locations
 - `work_mode` has one value. **If fully remote work is allowed, use `remote`**, even when an office is also offered ("Bengaluru or Remote" → `remote`).
 - `hybrid` only when the same person splits time between office and home ("3 days in office").
-- `locations` lists the places named, as written in the posting ("Bengaluru or Remote" → `["Bengaluru"]`). The word "Remote" is not a location.
+- Company-wide policy text ("many teams offer hybrid options", "some roles allow remote") does not decide this role's work mode. Use only statements about this role; if there are none, `null`.
+- `locations` lists the places named, one entry per place, as written ("Bengaluru or Remote" → `["Bengaluru"]`, "Remote - Bengaluru, India" → `["Bengaluru, India"]`). Don't split a city from its country. The word "Remote" is not a location.
 
 ## Dates and duration
 - `start`: only when a month and year are both stated ("June 2027" → `2027-06`). "Summer 2027" → `null`.

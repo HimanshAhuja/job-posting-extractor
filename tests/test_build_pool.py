@@ -45,6 +45,25 @@ def test_model_input_has_title_and_location_on_top():
     assert model_input(posting) == "Data Analyst Intern\nLocation: Bengaluru, India\n\nStipend: ₹25K/month"
 
 
+def lever_job(commitment, workplace):
+    return {"id": "abc", "text": "Software Engineer, Internship", "description": "<p>Build things.</p>",
+            "categories": {"location": "Bangalore", "commitment": commitment}, "workplaceType": workplace}
+
+
+def test_lever_header_shows_what_the_job_page_shows():
+    posting = from_lever(lever_job("Internship", "onsite"), ZETA)
+    assert model_input(posting) == (
+        "Software Engineer, Internship\nLocation: Bangalore\nCommitment: Internship\nWorkplace: On-site"
+        "\n\nBuild things."
+    )
+
+
+def test_unspecified_workplace_is_not_shown():
+    posting = from_lever(lever_job("Full-time", "unspecified"), ZETA)
+    assert "Commitment: Full-time" in model_input(posting)
+    assert "Workplace:" not in model_input(posting)
+
+
 def test_model_input_skips_empty_location():
     posting = from_greenhouse(greenhouse_job(location={"name": ""}), GROWW)
     assert "Location:" not in model_input(posting)
