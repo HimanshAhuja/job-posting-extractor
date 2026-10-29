@@ -269,15 +269,18 @@ def main():
     print(f"{len(done)} up to date, {len(todo)} to go -> {out_path.relative_to(REPO_ROOT)}")
 
     results = []
+    stopped_early = False
     with out_path.open("a", encoding="utf-8") as out:
         for i, posting in enumerate(todo, 1):
             try:
                 result = label_one(session, args.model, posting, args.wait)
             except DailyLimitReached as err:
                 print(f"\nDaily limit reached. It refills continuously: re-run any time, or add --wait to keep going.\n{err}")
+                stopped_early = True
                 break
             except NetworkProblem as err:
                 print(f"\nStopped: {err}\nEverything labelled so far is saved; re-run the same command to continue.")
+                stopped_early = True
                 break
             except RequestTooLarge as err:
                 result = {"id": posting["id"], "split": posting["split"], "model": args.model,
@@ -299,6 +302,9 @@ def main():
         print(f"\nValid: {len(ok)}/{len(results)} | first-try valid: {sum(r['attempts'] == 1 for r in ok)}")
         print(f"Tokens per posting: {per:.0f} on average "
               f"-> all {len(postings)} selected postings would need ~{per * len(postings) / 1e6:.2f}M tokens")
+
+    if stopped_early:
+        sys.exit(1)  # unfinished: makes `... --split val && ... --split train` stop here instead of skipping ahead
 
 
 if __name__ == "__main__":

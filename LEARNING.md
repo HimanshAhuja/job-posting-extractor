@@ -161,6 +161,9 @@ Before: a guide change is cheap (re-run 20 pilot postings). After: it makes ever
 **The daily limit is a token bucket, not a midnight reset**
 Groq's 429 said "Limit 200000, Used 197125, Requested 3557, try again in 4m54.6s". If the limit reset once a day, that would say hours. The arithmetic: 200,000 / 86,400 s = 2.31 tokens/s; we were short 3,557 − 2,875 = 682 tokens; 682 / 2.31 = 294.6 s = 4m54.6s exactly (the Qwen run matched too). So the bucket holds at most 200K and refills steadily. `--wait` sleeps for exactly that time and carries on, about one posting every 21 minutes once the bucket is empty. Waiting doesn't count against the 5 retries; only real failures do.
 
+**Exit codes are how commands talk to `&&`**
+`A && B` runs B only if A exits with code 0 ("success"). The labeller used to print "Stopped" on a network error and then exit 0, so `--split val && --split train` skipped ahead to train with val only 68/117 done. Now an unfinished run exits 1, and the chain stops there. A program that fails but reports success breaks every script built on top of it.
+
 **Normalize in code, not in the model**
 `src/normalize/pay.py` turns "$40/hour" into 83,200 a year with written assumptions (2,080 working hours a year). If the model did this, every answer would be a chance for an arithmetic mistake, and the assumptions would be invisible. Code is tested once and does the same thing every time. Currency is never converted, because rates change and the posting doesn't.
 
