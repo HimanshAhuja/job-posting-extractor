@@ -84,6 +84,24 @@ def test_daily_limit_stops_the_run():
         lg.call_groq(FakeSession([limit]), "some-model", [])
 
 
+DAILY_LIMIT = FakeResponse(429, {"error": {"message": (
+    "Rate limit reached on tokens per day (TPD): Limit 200000, Used 197125, Requested 3557. "
+    "Please try again in 4m54.6s.")}})
+
+
+def test_with_wait_the_daily_limit_is_waited_out(monkeypatch):
+    slept = []
+    monkeypatch.setattr(lg.time, "sleep", slept.append)
+    session = FakeSession([DAILY_LIMIT, DAILY_LIMIT, answer("{}")])
+    assert lg.call_groq(session, "some-model", [], wait_daily=True).ok
+    assert slept == [pytest.approx(296.6)] * 2  # 4m54.6s from the message, plus 2s margin
+
+
+def test_waiting_for_limits_does_not_use_up_the_retries():
+    session = FakeSession([DAILY_LIMIT] * 8 + [answer("{}")])  # more waits than the 5 failures allowed
+    assert lg.call_groq(session, "some-model", [], wait_daily=True).ok
+
+
 def test_per_minute_limit_waits_and_retries():
     limit = FakeResponse(429, {"error": {"message": "tokens per minute (TPM)"}}, {"retry-after": "3"})
     session = FakeSession([limit, answer("{}")])

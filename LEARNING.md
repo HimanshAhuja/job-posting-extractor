@@ -158,6 +158,9 @@ Groq's daily limits are per model, so two models give two separate budgets: gpt-
 **Freeze the guide once real labelling starts**
 Before: a guide change is cheap (re-run 20 pilot postings). After: it makes every label stale. New cases go into DECISIONS.md, and only a case that matters enough triggers a relabel.
 
+**The daily limit is a token bucket, not a midnight reset**
+Groq's 429 said "Limit 200000, Used 197125, Requested 3557, try again in 4m54.6s". If the limit reset once a day, that would say hours. The arithmetic: 200,000 / 86,400 s = 2.31 tokens/s; we were short 3,557 − 2,875 = 682 tokens; 682 / 2.31 = 294.6 s = 4m54.6s exactly (the Qwen run matched too). So the bucket holds at most 200K and refills steadily. `--wait` sleeps for exactly that time and carries on, about one posting every 21 minutes once the bucket is empty. Waiting doesn't count against the 5 retries; only real failures do.
+
 **Normalize in code, not in the model**
 `src/normalize/pay.py` turns "$40/hour" into 83,200 a year with written assumptions (2,080 working hours a year). If the model did this, every answer would be a chance for an arithmetic mistake, and the assumptions would be invisible. Code is tested once and does the same thing every time. Currency is never converted, because rates change and the posting doesn't.
 

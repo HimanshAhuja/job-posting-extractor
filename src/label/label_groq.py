@@ -8,6 +8,7 @@ lines, the last line wins.
 Usage (from the repo root, with .venv active):
     python -m src.label.label_groq --model openai/gpt-oss-120b --pilot 20
     python -m src.label.label_groq --model openai/gpt-oss-120b --split test
+    python -m src.label.label_groq --model qwen/qwen3.8-27b --split train --wait
 """
 import argparse
 import hashlib
@@ -69,8 +70,25 @@ def parse_duration(text):
     return sum(float(n) * units[u] for n, u in re.findall(r"(\d+(?:\.\d+)?)(ms|h|m|s)", text or ""))
 
 
-def call_groq(session, model, messages):
-    """One chat completion. Waits on short-term limits; raises on daily limits."""
+def daily_wait_seconds(resp):
+    """How long until the daily bucket holds enough tokens for this request.
+
+    Groq's daily limit refills continuously (200K/day = 2.3 tokens/s), so the
+    answer is minutes, not "tomorrow". It's in the retry-after header, or in the
+    message ("Please try again in 4m54.6s").
+    """
+    if resp.headers.get("retry-after"):
+        return float(resp.headers["retry-after"])
+    found = re.search(r"try again in ([\d.hms]+)", resp.text)
+    return parse_duration(found.group(1)) if found else 60
+
+
+def call_groq(session, model, messages, wait_daily=False):
+    """One chat completion. Waits on per-minute limits.
+
+    On the daily limit it raises DailyLimitReached, or with wait_daily=True
+    sleeps until the bucket has refilled enough and carries on.
+    """
     body = {
         "model": model,
         "messages": messages,
@@ -78,7 +96,8 @@ def call_groq(session, model, messages):
         "response_format": {"type": "json_object"},  # ask Groq to return JSON only
         **MODEL_OPTIONS.get(model, {}),
     }
-    for attempt in range(5):
+    attempt = 0  # counts failures only; waiting for a limit is not a failure
+    while attempt < 5:
         started = time.time()
         try:
             # (connect, read) timeouts: give up on a silent connection instead of hanging forever
@@ -88,6 +107,7 @@ def call_groq(session, model, messages):
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as err:
             print(f"  network error ({type(err).__name__}), retrying in {2 ** attempt}s")
             time.sleep(2 ** attempt)
+            attempt += 1
             continue
         resp.api_seconds = time.time() - started  # time spent on the request itself, not on our waits
         if resp.status_code == 200:
@@ -98,13 +118,18 @@ def call_groq(session, model, messages):
             raise RequestTooLarge(resp.text[:300])
         if resp.status_code == 429:
             if re.search(r"per day|\(TPD\)|\(RPD\)", resp.text):
-                raise DailyLimitReached(resp.text[:300])
-            wait = float(resp.headers.get("retry-after", 10))
-            print(f"  per-minute limit hit, waiting {wait:.0f}s")
-            time.sleep(wait + 1)
+                if not wait_daily:
+                    raise DailyLimitReached(resp.text[:300])
+                wait = daily_wait_seconds(resp)
+                print(f"  daily limit: waiting {wait / 60:.1f} min for the bucket to refill ({now()})")
+            else:
+                wait = float(resp.headers.get("retry-after", 10))
+                print(f"  per-minute limit hit, waiting {wait:.0f}s")
+            time.sleep(wait + 2)  # a little extra so we don't arrive a moment too early
             continue
         if resp.status_code >= 500:
             time.sleep(2 ** attempt)
+            attempt += 1
             continue
         resp.raise_for_status()  # 400/401/404: a bug in our request, so stop loudly
     raise NetworkProblem("Groq kept failing after 5 tries (network or server errors)")
@@ -124,7 +149,7 @@ def strip_reasoning(content):
     return re.sub(r"<think>.*?</think>", "", content or "", flags=re.DOTALL).strip()
 
 
-def label_one(session, model, posting):
+def label_one(session, model, posting, wait_daily=False):
     messages = [
         {"role": "system", "content": system_prompt()},
         {"role": "user", "content": user_prompt(posting["text"])},
@@ -136,7 +161,7 @@ def label_one(session, model, posting):
               "text_sha1": fingerprint(posting["text"]), "prompt_sha1": fingerprint(messages[0]["content"])}
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
-        resp = call_groq(session, model, messages)
+        resp = call_groq(session, model, messages, wait_daily)
         api_seconds += resp.api_seconds
         if resp.ok:
             data = resp.json()
@@ -220,6 +245,8 @@ def main():
     which = parser.add_mutually_exclusive_group(required=True)
     which.add_argument("--pilot", type=int, metavar="N", help="label N fixed train postings")
     which.add_argument("--split", choices=["train", "val", "test"])
+    parser.add_argument("--wait", action="store_true",
+                        help="at the daily limit, wait for it to refill instead of stopping")
     args = parser.parse_args()
 
     load_dotenv()
@@ -245,9 +272,9 @@ def main():
     with out_path.open("a", encoding="utf-8") as out:
         for i, posting in enumerate(todo, 1):
             try:
-                result = label_one(session, args.model, posting)
+                result = label_one(session, args.model, posting, args.wait)
             except DailyLimitReached as err:
-                print(f"\nDaily limit reached; re-run the same command tomorrow to continue.\n{err}")
+                print(f"\nDaily limit reached. It refills continuously: re-run any time, or add --wait to keep going.\n{err}")
                 break
             except NetworkProblem as err:
                 print(f"\nStopped: {err}\nEverything labelled so far is saved; re-run the same command to continue.")
