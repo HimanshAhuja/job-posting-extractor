@@ -122,6 +122,26 @@ def test_dropped_connection_is_retried():
     assert len(session.sent) == 2
 
 
+def test_with_wait_a_failed_certificate_check_is_retried_later(monkeypatch):
+    slept = []
+    monkeypatch.setattr(lg.time, "sleep", slept.append)
+    ssl_error = lg.requests.exceptions.SSLError("self-signed certificate in certificate chain")
+    session = FakeSession([ssl_error, ssl_error, answer("{}")])
+    assert lg.call_groq(session, "some-model", [], wait_daily=True).ok
+    assert slept == [lg.OFFLINE_WAIT] * 2
+
+
+def test_with_wait_a_long_outage_is_waited_out():
+    session = FakeSession([lg.requests.exceptions.ConnectionError("no route")] * 20 + [answer("{}")])
+    assert lg.call_groq(session, "some-model", [], wait_daily=True).ok  # lid closed for the night
+
+
+def test_without_wait_a_long_outage_stops_the_run():
+    session = FakeSession([lg.requests.exceptions.ConnectionError("no route")] * 5)
+    with pytest.raises(lg.NetworkProblem):
+        lg.call_groq(session, "some-model", [])
+
+
 def test_api_time_excludes_our_waiting():
     result = lg.label_one(FakeSession([answer(json.dumps(valid_posting()))]), "some-model", POSTING)
     assert result["api_seconds"] < 1

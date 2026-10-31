@@ -33,6 +33,7 @@ API_URL = "https://api.groq.com/openai/v1/chat/completions"
 LABELS_DIR = REPO_ROOT / "data" / "processed" / "labels"
 MAX_ATTEMPTS = 2  # the first answer, plus one retry that shows the model its error
 TOKENS_PER_REQUEST = 4000  # rough size of one call; pause if fewer tokens remain this minute
+OFFLINE_WAIT = 300  # with --wait, how long to wait before trying a dead network again
 # gpt-oss models "think" before answering; low effort keeps the hidden thinking short.
 MODEL_OPTIONS = {
     "openai/gpt-oss-120b": {"reasoning_effort": "low"},
@@ -88,6 +89,11 @@ def call_groq(session, model, messages, wait_daily=False):
 
     On the daily limit it raises DailyLimitReached, or with wait_daily=True
     sleeps until the bucket has refilled enough and carries on.
+
+    With wait_daily=True a network outage (lid closed overnight, Wi-Fi not
+    connected yet, a network that fails the certificate check) is also waited
+    out: try again every 5 minutes. Certificate checks stay on, and the API key
+    is only sent after the check passes, so retrying is safe.
     """
     body = {
         "model": model,
@@ -103,8 +109,16 @@ def call_groq(session, model, messages, wait_daily=False):
             # (connect, read) timeouts: give up on a silent connection instead of hanging forever
             resp = session.post(API_URL, json=body, timeout=(10, 120))
         except requests.exceptions.SSLError as err:
-            raise NetworkProblem(SSL_HELP) from err  # retrying won't fix an intercepted network
+            if not wait_daily:
+                raise NetworkProblem(SSL_HELP) from err  # retrying now won't fix an intercepted network
+            print(f"  TLS certificate check failed, retrying in {OFFLINE_WAIT // 60} min ({now()})")
+            time.sleep(OFFLINE_WAIT)
+            continue
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as err:
+            if wait_daily and attempt >= 4:  # not a blip: offline for a while, so wait it out
+                print(f"  network down ({type(err).__name__}), retrying in {OFFLINE_WAIT // 60} min ({now()})")
+                time.sleep(OFFLINE_WAIT)
+                continue
             print(f"  network error ({type(err).__name__}), retrying in {2 ** attempt}s")
             time.sleep(2 ** attempt)
             attempt += 1
@@ -246,7 +260,7 @@ def main():
     which.add_argument("--pilot", type=int, metavar="N", help="label N fixed train postings")
     which.add_argument("--split", choices=["train", "val", "test"])
     parser.add_argument("--wait", action="store_true",
-                        help="at the daily limit, wait for it to refill instead of stopping")
+                        help="wait out the daily limit and network outages instead of stopping")
     args = parser.parse_args()
 
     load_dotenv()

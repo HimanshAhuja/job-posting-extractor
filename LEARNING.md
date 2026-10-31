@@ -164,6 +164,9 @@ Groq's 429 said "Limit 200000, Used 197125, Requested 3557, try again in 4m54.6s
 **Exit codes are how commands talk to `&&`**
 `A && B` runs B only if A exits with code 0 ("success"). The labeller used to print "Stopped" on a network error and then exit 0, so `--split val && --split train` skipped ahead to train with val only 68/117 done. Now an unfinished run exits 1, and the chain stops there. A program that fails but reports success breaks every script built on top of it.
 
+**A long-running job must survive the night**
+Train labelling takes about 18 days, and the laptop is closed 6–8 hours every night. The bucket keeps refilling while the lid is closed (it holds a full day), so the night costs no throughput. The job just has to still be alive in the morning. Without `--wait`, a network failure stops the run with advice. With `--wait`, it prints "network down, retrying in 5 min" and keeps trying. The certificate check stays on the whole time: the API key is only sent after the check passes, so a failed check leaks nothing, and retrying is safe.
+
 **Normalize in code, not in the model**
 `src/normalize/pay.py` turns "$40/hour" into 83,200 a year with written assumptions (2,080 working hours a year). If the model did this, every answer would be a chance for an arithmetic mistake, and the assumptions would be invisible. Code is tested once and does the same thing every time. Currency is never converted, because rates change and the posting doesn't.
 
