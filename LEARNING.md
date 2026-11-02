@@ -170,6 +170,9 @@ Train labelling takes about 18 days, and the laptop is closed 6–8 hours every 
 **Checking gold labels: read the posting first, then the form**
 `app/review_gold.py` shows the posting on the left and gpt-oss's pre-label as an editable form on the right. Read the posting first and decide what each field should be, then compare with the form. Otherwise you just approve whatever is there (anchoring). The posting is shown as plain text, exactly as the model saw it; markdown would have turned "#LI-Hybrid" into a heading and hidden the tag. Every save goes through the same Pydantic schema as the model labels and records `changed_from_prelabel`. So when the 148 are done, we also get a free measurement: how often gpt-oss was wrong, field by field.
 
+**A smaller gold set, sampled so it still represents the test set**
+Checking all 148 by hand would take 5–7 hours, so the gold set is 50. A plain random 50 happened to contain only 4 India postings, against the 8 the test-set share predicts, and India is where INR pay and LPA live. So the sample is stratified: internship × India groups, each sampled in proportion to its size. Because it's proportional, scores on the 50 still estimate scores on all 148 without reweighting. The seed is fixed and the sample is never re-drawn after seeing results. Smaller sample, wider error bars: report confidence intervals, not bare percentages.
+
 **Normalize in code, not in the model**
 `src/normalize/pay.py` turns "$40/hour" into 83,200 a year with written assumptions (2,080 working hours a year). If the model did this, every answer would be a chance for an arithmetic mistake, and the assumptions would be invisible. Code is tested once and does the same thing every time. Currency is never converted, because rates change and the posting doesn't.
 

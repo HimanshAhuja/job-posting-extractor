@@ -55,3 +55,19 @@ def test_gold_goes_stale_when_the_posting_text_changes(tmp_path):
     gold = g.load_gold(path)
     assert g.checked_ids(gold, [POSTING]) == {POSTING["id"]}
     assert g.checked_ids(gold, [{**POSTING, "text": "Data Intern at Acme (edited)"}]) == set()
+
+
+def fake_test_set():
+    return [{"id": f"t{k:03}", "split": "test" if k < 148 else "train",
+             "is_intern": k % 4 == 0, "is_india": k % 6 == 0} for k in range(200)]
+
+
+def test_gold_sample_is_fixed_and_keeps_the_test_set_mix():
+    sample = g.pick_gold(fake_test_set())
+    assert len(sample) == 50 and len({p["id"] for p in sample}) == 50
+    assert all(p["split"] == "test" for p in sample)
+    assert [p["id"] for p in sample] == [p["id"] for p in g.pick_gold(fake_test_set())]
+    test = [p for p in fake_test_set() if p["split"] == "test"]
+    for flag in ("is_intern", "is_india"):
+        expected = 50 * sum(p[flag] for p in test) / len(test)
+        assert abs(sum(p[flag] for p in sample) - expected) <= 1

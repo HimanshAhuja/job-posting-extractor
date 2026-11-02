@@ -8,6 +8,7 @@ The form in the app edits every field as text. form_to_label / label_to_form
 convert between that and a label, and are tested here instead of in the UI.
 """
 import json
+import random
 from datetime import datetime, timezone
 
 from src.collect.fetch_boards import REPO_ROOT
@@ -17,6 +18,7 @@ from src.schema import SCHEMA_VERSION, JobPosting
 GOLD_PATH = REPO_ROOT / "data" / "gold" / "test_gold.jsonl"
 PRELABEL_PATH = REPO_ROOT / "data" / "processed" / "labels" / "test__openai_gpt-oss-120b.jsonl"
 
+GOLD_SIZE = 50  # hand-checking all 148 would take 5-7 hours; 50 keeps the claim honest in about 2
 FIELDS = list(JobPosting.model_fields)
 LIST_FIELDS = {"locations", "skills"}  # one item per line in the form
 NUMBER_FIELDS = {"duration_value", "pay_min", "pay_max", "min_gpa"}
@@ -27,6 +29,27 @@ CHOICES = {  # fields picked from a fixed list; "" means null
     "pay_period": ["", "hour", "day", "week", "month", "year"],
     "fee_required": ["", "true", "false"],
 }
+
+
+def pick_gold(postings, n=GOLD_SIZE):
+    """The n test postings to hand-check, the same ones every time.
+
+    A random sample, stratified so it has the same share of internships and
+    India postings as the whole test set (a plain random 50 had only 4 India
+    postings instead of 8). Proportional, so scores on the sample estimate
+    scores on the full test set without reweighting. Never re-drawn after
+    seeing results.
+    """
+    test = sorted((p for p in postings if p["split"] == "test"), key=lambda p: p["id"])
+    groups = {}
+    for p in test:
+        groups.setdefault((p["is_intern"], p["is_india"]), []).append(p)
+    exact = {k: n * len(group) / len(test) for k, group in groups.items()}
+    sizes = {k: int(x) for k, x in exact.items()}
+    for k in sorted(exact, key=lambda k: exact[k] - sizes[k], reverse=True)[: n - sum(sizes.values())]:
+        sizes[k] += 1  # the largest remainders get the leftover places
+    rng = random.Random("42:gold")
+    return [p for k in sorted(groups) for p in rng.sample(groups[k], sizes[k])]
 
 
 def empty_label():

@@ -1,4 +1,4 @@
-"""Hand-check the test set: the posting on the left, its pre-label as an editable form on the right.
+"""Hand-check the gold sample of the test set: the posting on the left, its pre-label as an editable form on the right.
 
 Run from the repo root, with .venv active:
     streamlit run app/review_gold.py
@@ -23,7 +23,7 @@ st.set_page_config(page_title="Gold check", layout="wide")
 
 @st.cache_data
 def load_test():
-    postings = [p for p in load_selected() if p["split"] == "test"]
+    postings = g.pick_gold(load_selected())  # the fixed 50, not all 148
     prompt_sha1 = fingerprint(system_prompt())
     wanted = {p["id"]: (fingerprint(p["text"]), prompt_sha1) for p in postings}
     prelabels, _ = load_fresh_labels(g.PRELABEL_PATH, wanted)

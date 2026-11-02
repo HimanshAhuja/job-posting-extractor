@@ -1,0 +1,20 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # The tests only need these four packages; MLX is Apple-Silicon-only and isn't needed to run them.
+      # Versions come from requirements.txt so CI tests exactly what runs locally.
+      - name: Install test dependencies
+        run: pip install $(grep -iE '^(pydantic|pydantic_core|annotated-types|typing-inspection|typing_extensions|requests|python-dotenv|pytest|certifi|charset-normalizer|idna|urllib3|iniconfig|packaging|pluggy|Pygments)==' requirements.txt)
+      - name: Run tests
+        run: python -m pytest -q
