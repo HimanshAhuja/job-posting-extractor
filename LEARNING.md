@@ -167,6 +167,9 @@ Groq's 429 said "Limit 200000, Used 197125, Requested 3557, try again in 4m54.6s
 **A long-running job must survive the night**
 Train labelling takes about 18 days, and the laptop is closed 6–8 hours every night. The bucket keeps refilling while the lid is closed (it holds a full day), so the night costs no throughput. The job just has to still be alive in the morning. Without `--wait`, a network failure stops the run with advice. With `--wait`, it prints "network down, retrying in 5 min" and keeps trying. The certificate check stays on the whole time: the API key is only sent after the check passes, so a failed check leaks nothing, and retrying is safe.
 
+**Checking gold labels: read the posting first, then the form**
+`app/review_gold.py` shows the posting on the left and gpt-oss's pre-label as an editable form on the right. Read the posting first and decide what each field should be, then compare with the form. Otherwise you just approve whatever is there (anchoring). The posting is shown as plain text, exactly as the model saw it; markdown would have turned "#LI-Hybrid" into a heading and hidden the tag. Every save goes through the same Pydantic schema as the model labels and records `changed_from_prelabel`. So when the 148 are done, we also get a free measurement: how often gpt-oss was wrong, field by field.
+
 **Normalize in code, not in the model**
 `src/normalize/pay.py` turns "$40/hour" into 83,200 a year with written assumptions (2,080 working hours a year). If the model did this, every answer would be a chance for an arithmetic mistake, and the assumptions would be invisible. Code is tested once and does the same thing every time. Currency is never converted, because rates change and the posting doesn't.
 

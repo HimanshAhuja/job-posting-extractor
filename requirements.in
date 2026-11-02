@@ -10,3 +10,4 @@ requests        # Greenhouse / Lever public APIs
 pandas          # tabular inspection and cleaning
 python-dotenv   # load API keys from .env
 pytest          # unit tests for normalization rules
+streamlit       # local app for hand-checking the gold test set
